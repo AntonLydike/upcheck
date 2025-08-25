@@ -1,0 +1,27 @@
+[core]
+# your domain:
+domain = "https://upcheck.datenvorr.at/"
+# user agent (${domain} is expanded):
+user_agent = "Mozilla/5.0 (compatible; upcheck-bot; +${domain})"
+# number of seconds between checks (default 5 minutes)
+interval = 300
+# secret for flask (head -c 39 /dev/urandom | base64)
+secret = "GAliCErQGs7raNoVu6gue7D5cYqyycHFrawhzSFC9mfC5gacp4Go"
+# port to run on
+port = 8080
+
+[host.Website]
+# url (required)
+url = "https://antonlydike.de"
+
+# everything else is optional:
+# status, either one or a list of allowed values
+status = [200, 301, 302]
+# regex that the body is checked against
+body = "Anton Lydike"
+# number of seconds after which the request is considered failed
+timeout = 60
+# timeout after which the service is considered degraded
+timeout_degraded = 2
+# http method to use
+method = "GET"

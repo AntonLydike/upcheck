@@ -1,0 +1,46 @@
+# RUN: python -m upcheck.check %s | filecheck %s
+
+[Datenvorrat]
+url = "https://datenvorr.at"
+
+# CHECK-LABEL: [Datenvorrat]
+# CHECK: passed = true
+# CHECK: errors = []
+
+[Website]
+url = "https://antonlydike.de"
+status = 200
+body = "Anton Lydike"
+timeout = 1
+
+# CHECK-LABEL: [Website]
+# CHECK: passed = true
+# CHECK: errors = []
+
+[FailsOnBody]
+url = "https://antonlydike.de"
+body = "Anton Lydike - Blog"
+
+# CHECK-LABEL: [FailsOnBody]
+# CHECK: passed = false
+# CHECK: errors = 
+# CHECK-SAME: Body
+
+
+[FailsOnStatus]
+url = "https://antonlydike.de"
+status=201
+
+# CHECK-LABEL: [FailsOnStatus]
+# CHECK: passed = false
+# CHECK: errors = 
+# CHECK-SAME: Status
+
+[FailsOnTime]
+url = "https://antonlydike.de"
+timeout=0.001
+
+# CHECK-LABEL: [FailsOnTime]
+# CHECK: passed = false
+# CHECK: errors = 
+# CHECK-SAME: time

@@ -1,0 +1,19 @@
+[project]
+name = "upcheck"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "aalib",
+    "flask>=3.1.2",
+    "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "filecheck>=1.0.3",
+    "pytest>=8.4.1",
+    "lit>=18.1.8",
+]
+
+[tool.uv.sources]
+aalib = { git = "https://github.com/AntonLydike/aalib" }
