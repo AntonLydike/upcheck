@@ -81,6 +81,29 @@ class Config:
             checks=checks, 
             **data['core']
         )
+    
+@dataclass
+class Snapshot:
+    uuid: str
+    check: str
+    timestamp: datetime
+    duration: float
+    size: int
+    status: int
+    headers: str
+    content: str
+
+
+@dataclass
+class Incident:
+    check: str
+    start: datetime
+    end: datetime
+    status: int
+    snapshots: Sequence[str]
+    """
+    sequence of snapshot uuids
+    """
 
 if __name__ == '__main__':
     import sys

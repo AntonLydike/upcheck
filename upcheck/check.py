@@ -1,10 +1,12 @@
 from datetime import datetime
+import json
 import requests
 import re
+import uuid
 
-from upcheck.model import ConnCheckRes, ConnCheckSpec, Config
+from upcheck.model import ConnCheckRes, ConnCheckSpec, Config, Snapshot
 
-def check_conn(config: Config, check: ConnCheckSpec) -> ConnCheckRes:
+def check_conn(config: Config, check: ConnCheckSpec) -> tuple[ConnCheckRes, Snapshot | None]:
     now = datetime.now()
     try:
         res = requests.request(check.method, check.url, timeout=check.timeout, allow_redirects=True, headers={
@@ -19,26 +21,46 @@ def check_conn(config: Config, check: ConnCheckSpec) -> ConnCheckRes:
             408,
             False,
             ["Connection timed out"]
-        )
+        ), None
 
-    body = res.content
-    status_ok = res.status_code in check.status
-    body_ok = re.compile(check.body if check.body else ".").search(body.decode()) is not None
     errors = []
-    if not status_ok:
+    body_bytes = res.content
+    body = body_bytes.decode()
+
+    body_ok = True
+    status_ok = True
+
+    if not res.status_code in check.status:
+        status_ok = False
         errors.append("Status check failed")
-    if not body_ok:
+
+    if check.body:
+        body_ok = re.compile(check.body).search(body) is not None
         errors.append("Body check failed")
+
+    snapshot = None
+    if not (status_ok and body_ok):
+        # create a snapshot:
+        snapshot = Snapshot(
+            str(uuid.uuid4()),
+            check.name,
+            now,
+            res.elapsed.total_seconds(),
+            len(body),
+            res.status_code,
+            dict(res.headers),
+            body,
+        )
 
     return ConnCheckRes(
         check.name,
         now,
         res.elapsed.total_seconds(),
-        len(body),
+        len(body_bytes),
         res.status_code,
         status_ok and body_ok,
         tuple(errors)
-    )
+    ), snapshot
 
 
 if __name__ == '__main__':
@@ -51,7 +73,7 @@ if __name__ == '__main__':
     cfg = Config(":memory:", checks={}, domain="https://ci.test", secret="s3cr3t")
     for check in ConnCheckSpec.from_file(file):
         print(f"[{check.name}]")
-        res = check_conn(cfg, check)
+        res, _ = check_conn(cfg, check)
         for key in res.__dir__():
             if key.startswith('__'):
                 continue

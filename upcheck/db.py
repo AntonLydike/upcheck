@@ -2,19 +2,16 @@ from collections import defaultdict
 from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+import json
 import os
 import sqlite3
 from threading import Lock
 from typing import Generator
-from upcheck.model import ConnCheckRes
+from upcheck.model import ConnCheckRes, Incident, Snapshot
 
 DB_PATH = "upcheck.db"
 
 SCHEMA = """
-CREATE TABLE hosts (
-    name TEXT PRIMARY KEY
-);
-
 CREATE TABLE checks (
     check_name TEXT NOT NULL,
     timestamp TEXT NOT NULL,
@@ -25,6 +22,32 @@ CREATE TABLE checks (
     errors TEXT NOT NULL,
     PRIMARY KEY (check_name, timestamp)
 );
+
+CREATE TABLE snapshots (
+    uuid TEXT NOT NULL,
+    check_name TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    duration REAL NOT NULL,
+    size INT NOT NULL,
+    status INT NOT NULL,
+    headers TEXT NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (uuid)
+);
+
+CREATE INDEX snapshots_name ON snapshots (check_name, timestamp);
+
+CREATE TABLE incidents (
+    uuid TEXT NOT NULL,
+    check_name TEX NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    notes TEXT NOT NULL,
+    PRIMARY KEY (uuid)
+);
+
+CREATE INDEX incidents_time ON incidents (start_time, end_time);
+CREATE INDEX incidents_check ON incidents (check_name);
 """
 
 def initialize_db(db_path: str = DB_PATH, soft: bool = False):
@@ -93,20 +116,37 @@ def read_histogramm(conn: sqlite3.Connection | None, timespan: timedelta = timed
 
     return data
 
-def save_check(res: ConnCheckRes):
-    with with_conn() as conn:
-        conn.execute("INSERT INTO checks(check_name, timestamp, duration, size, status, passed, errors) VALUES (?,?,?,?,?,?,?)", (
-            res.check,
-            res.time.isoformat(),
-            res.duration,
-            res.size,
-            res.status,
-            res.passed,
-            "\n".join(res.errors)
-        ))
+
+def save_check(conn: sqlite3.Connection, res: ConnCheckRes):
+    conn.execute("INSERT INTO checks(check_name, timestamp, duration, size, status, passed, errors) VALUES (?,?,?,?,?,?,?)", (
+        res.check,
+        res.time.isoformat(),
+        res.duration,
+        res.size,
+        res.status,
+        res.passed,
+        "\n".join(res.errors)
+    ))
+
+
+def save_snapshot(conn: sqlite3.Connection, snap: Snapshot):
+    conn.execute("INSERT INTO snapshots(uuid, check_name, timestamp, duration, size, status, headers, content) VALUES (?,?,?,?,?,?,?,?)", (
+        snap.uuid,
+        snap.check,
+        snap.timestamp.isoformat(),
+        snap.duration,
+        snap.size,
+        snap.status,
+        json.dumps(snap.headers),
+        snap.content,
+    ))
 
 def all_time_stats(conn: sqlite3.Connection) -> dict[str, float]:
     return  {
         row['check_name']: row['uptime'] 
         for row in conn.execute("SELECT check_name, AVG(passed) AS uptime FROM checks GROUP BY check_name")
     }
+
+
+def incidents(conn: sqlite3.Connection) -> dict[str, Sequence[Incident]]:
+    conn.execute("SELECT * FROM checks")

@@ -6,6 +6,10 @@ from upcheck.db import with_conn, read_histogramm, initialize_db, all_time_stats
 from upcheck.daemon import spawn_daemons
 
 config = Config.load("upcheck.toml")
+
+if config.secret == "s3cr3t":
+    print("Please change the default secret to a secure value, e.g. by running `head -c 39 /dev/urandom | base64`")
+
 initialize_db(soft=True)
 
 spawn_daemons(config)
@@ -59,17 +63,16 @@ def index():
                 'uptime_goal': 0.99,
 
             }
-    print(data)
 
     time_buckets = [
-        end - (duration * i / buckets) for i in range(buckets-1, -1, -1)
+        (end - (duration * i / buckets)).astimezone() for i in range(buckets-1, -1, -1)
     ]
 
     return flask.render_template(
         'base.html', 
         data=data,
-        start_time=end - duration,
-        end_time=end,
+        start_time=(end - duration).astimezone(),
+        end_time=end.astimezone(),
         duration=duration,
         time_buckets=time_buckets,
     )
