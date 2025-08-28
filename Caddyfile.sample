@@ -23,7 +23,7 @@ upcheck.datenvorr.at {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "same-origin"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:;"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://plausible.datenvorr.at; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:;"
     }
 
     # Compression
