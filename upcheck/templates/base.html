@@ -7,15 +7,16 @@
   <style>
     .histogram {
       display: flex;
-      align-items: flex-end;
       height: 4rem;
       gap: 3px;
-      margin-top: 0.5rem;
     }
     .bar {
       flex: 1;
       border-radius: 3px;
       height: calc(var(--size, 1) * 100%);
+    }
+    .bar.gray {
+      height: 100%;
     }
     .bar.gray   { background-color: #dadddf; } /* no data */
     .bar.green  { background-color: #28a745; } /* good */
@@ -40,7 +41,50 @@
 <body class="bg-light">
 <div class="container py-5">
 
-  <h1 class="mb-4">Service Uptime Dashboard</h1>
+  <div class="mb-5 d-flex justify-content-between flex-wrap align-items-end">
+    <h1>Service Uptime Dashboard</h1>
+    <form class="d-flex align-items-end gap-2 flex-wrap" id="report-range">
+      <!-- End Date -->
+      <div>
+        <label for="endDate" class="form-label mb-1 small">End</label>
+        <div class="d-flex gap-2">
+          <input type="date" class="form-control form-control-sm" name="end_date" required value="{{ end_time.date().isoformat() }}" max="{{ end_time.date().isoformat() }}">
+          <input type="time" class="form-control form-control-sm" name="end_time" value="{{ end_time.time().strftime('%H:%M') }}" max="{{ end_time.time().strftime('%H:%M') }}">
+        </div>
+      </div>
+
+      <!-- Duration -->
+      <div>
+        <label for="durationValue" class="form-label mb-1 small">Duration</label>
+        <div class="d-flex input-group input-group-sm">
+          <input type="number" min="1" class="form-control" id="durationValue" name="duration_value" value="1" required style="max-width: 70px;">
+          <select class="form-select" id="durationUnit" name="duration_unit" required style="max-width: 95px;">
+            <option value="m">min</option>
+            <option value="h">hour</option>
+            <option value="d" selected>day</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Buckets -->
+      <div>
+        <label for="buckets" class="form-label mb-1 small">Buckets</label>
+        <input type="number" min="1" max="96" class="form-control form-control-sm" id="buckets" name="buckets" value="{{ buckets }}" required style="max-width: 70px;">
+      </div>
+
+      <!-- Submit -->
+      <div class="d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+        <a class="btn btn-sm btn-warning" href="/">Reset</a>
+      </div>
+
+      <!-- Hidden field to detect form spammers -->
+       <div class="d-none">
+        <label for="buckets" class="form-label mb-1 small">UUID</label>
+        <input type="text" name="uuid" id="uuid-input">
+       </div>
+    </form>
+  </div>
 
   {% for name, service in data.items() %}
   <div class="card mb-4 shadow-sm">
@@ -57,49 +101,32 @@
 
       <!-- Uptime Histogram -->
       <h6 class="mt-3">Uptime</h6>
-      <div class="histogram">
-        {% for up in service.hist %}
-          {% if up != up %}
-            <div class="bar gray" title="No Data"></div>
-          {% else %}
-            {% if up < service.uptime_goal %}
-              <div class="bar red" style="--size: {{up}}" title="Below goal: {{ '%.0f'|format(up*100) }}%"></div>
-            {% elif up < 1 %}
-              <div class="bar orange" style="--size: {{up}}" title="Degraded: {{ '%.0f'|format(up*100) }}%"></div>
-            {% else %}
-              <div class="bar green" style="--size: {{up}}" title="Good: {{ '%.0f'|format(up*100) }}%"></div>
-            {% endif %}
-          {% endif %}
+
+      <div class="histogram align-items-end">
+        {% for up, time in service.hist|zip(time_buckets) %}
+          <div class="bar {{ uptime_to_color(up, service.uptime_goal) }}" style="--size: {{ up }}" x-time="{{time}}" x-value="{{'%.0f'|format(up*100)}}%" title="{{time}}: {{'%.0f'|format(up*100)}}%"></div>
         {% endfor %}
+      </div>
+
+      <!-- Axis Names -->
+      <div class="d-flex justify-content-between">
+          <small class="text-muted"><time datetime="{{ start_time }}">{{ start_time }}</time></small>
+          <small class="text-muted"><time datetime="{{ end_time }}">{{ end_time }}</time></small>
       </div>
 
       <!-- Latency Histogram -->
-      <h6 class="mt-4">Latency (geomean)</h6>
-      <div class="histogram">
+      <div class="histogram align-items-start">
         {% for lat, time in service.hist_latency|zip(time_buckets) %}
-          {% if lat != lat %}
-            <div class="bar gray" title="No Data"></div>
-          {% else %}
-            {% if lat > 2 * service.degraded_latency %}
-              <div class="bar red" style="--size: {{lat / service.max_geomean_lat}}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
-            {% elif lat > service.degraded_latency %}
-              <div class="bar orange" style="--size: {{lat / service.max_geomean_lat}}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
-            {% else %}
-              <div class="bar green" style="--size: {{lat / service.max_geomean_lat}}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
-            {% endif %}
-          {% endif %}
+        <div class="bar {{ lat_to_color(lat, service.max_geomean_lat) }}" style="--size: {{ lat / service.max_geomean_lat }}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
         {% endfor %}
       </div>
+      <h6 class="mt-2">Latency (geomean)</h6>
 
-      <div class="d-flex justify-content-between">
-          <div class="text-muted"><time datetime="{{ start_time }}">{{ start_time }}</time></div>
-          <div class="text-muted"><time datetime="{{ end_time }}">{{ end_time }}</time></div>
-      </div>
 
       <!-- Stats -->
       <div class="mt-4 d-flex justify-content-between">
-        <p class=""><strong>Uptime (recent):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
-        <p class=""><strong>Total Uptime:</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
+        <p class=""><strong>Uptime (period):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
+        <p class=""><strong>Uptime (total):</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
         <p class=""><strong>Goal:</strong> >{{ '%.2f'|format(service.uptime_goal * 100) }}%</p>
       </div>
     </div>
@@ -112,7 +139,36 @@
   </footer>
   </div>
   <script>document.querySelectorAll('time[datetime]').forEach(t => {
-    t.innerText = (new Date(t.getAttribute('datetime'))).toLocaleString();
-  })</script>
+    t.innerText = (new Date(t.getAttribute('datetime'))).toLocaleString(undefined, {dateStyle: "short", timeStyle: "short"});
+  })
+
+  document.querySelectorAll('.bar[x-time][x-value]').forEach(elm => {
+    const t = new Date(elm.getAttribute('x-time'));
+    const val = elm.getAttribute('x-value');
+    elm.setAttribute('title', `${t.toLocaleString(undefined, {dateStyle: "short", timeStyle: "short"})}: ${val}`);
+  })
+  document.querySelector('#report-range').addEventListener('formdata', e=> {
+    const data = e.formData;
+    if (data.get('end_time')) {
+      data.append(
+        'end', `${data.get('end_date')} ${data.get('end_time')}`
+      );
+    } else {
+      data.append(
+        'end', data.get('end_date')
+      );
+    }
+    data.append(
+      'duration', `${data.get('duration_value')}${data.get('duration_unit')}`
+    );
+
+    ['duration_value', 'duration_unit', 'end_date', 'end_time', 'uuid'].map(f => data.delete(f));
+  })
+  document.querySelector('input[name=end_date]').addEventListener('change', e => {
+    const t = document.querySelector('input[name=end_time]');
+    t.value = "00:00";
+    t.focus();
+  })
+  </script>
   </body>
   </html>

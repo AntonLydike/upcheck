@@ -17,7 +17,7 @@ class ConnCheckSpec:
     url: str
     timeout: float = 60.0
     timeout_degraded: float = 2.0
-    status: Sequence[int] = (200, 301, 302)
+    status: Sequence[int] = (200,)
     body: str | None = None
 
     def __post_init__(self):

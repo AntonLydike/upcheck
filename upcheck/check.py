@@ -16,11 +16,22 @@ def check_conn(config: Config, check: ConnCheckSpec) -> tuple[ConnCheckRes, Snap
         return ConnCheckRes(
             check.name,
             now,
-            check.timeout,
-            0,
-            408,
+            float('nan'),
+            None,
+            None,
             False,
             ["Connection timed out"]
+        ), None
+    except requests.ConnectionError as ex:
+        # TODO: log underlying cause better (i.e. name resolution error, etc...)
+        return ConnCheckRes(
+            check.name,
+            now,
+            float('nan'),
+            None,
+            None,
+            False,
+            ["Connection Error"]
         ), None
 
     errors = []

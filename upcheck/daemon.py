@@ -27,7 +27,8 @@ def check_daemon(cfg: Config, host: str, out: multiprocessing.Queue):
         sleep_time = (last_check + cfg.interval) - time.time()
         if sleep_time < 1:
             print(f"Negative sleep time on {check.name}: ({sleep_time}s)", file=sys.stderr)
-            last_check = time.time()
+            # reset interval
+            last_check = time.time() - cfg.interval
         else:
             time.sleep(sleep_time)
 
@@ -40,7 +41,8 @@ def writer_damon(queue: Queue[ConnCheckRes]):
                 if isinstance(check, ConnCheckRes):
                     save_check(conn, check)
                     print("Got Trace")
-                elif isinstance(snap, Snapshot):
+
+                if isinstance(snap, Snapshot):
                     save_snapshot(conn, snap)
                     print("Got Snapshot")
         except Exception as ex:

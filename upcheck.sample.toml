@@ -1,12 +1,12 @@
 [core]
 # your domain:
-domain = "https://upcheck.datenvorr.at/"
+domain = "https://your-upcheck-deployment.com/"
 # user agent (${domain} is expanded):
 user_agent = "Mozilla/5.0 (compatible; upcheck-bot; +${domain})"
 # number of seconds between checks (default 5 minutes)
 interval = 300
 # secret for flask (head -c 39 /dev/urandom | base64)
-secret = "GAliCErQGs7raNoVu6gue7D5cYqyycHFrawhzSFC9mfC5gacp4Go"
+secret = "s3cr3t"
 # port to run on
 port = 8080
 

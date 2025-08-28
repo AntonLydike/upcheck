@@ -15,9 +15,9 @@ SCHEMA = """
 CREATE TABLE checks (
     check_name TEXT NOT NULL,
     timestamp TEXT NOT NULL,
-    duration REAL NOT NULL,
-    size INTEGER NOT NULL,
-    status INTEGER NOT NULL,
+    duration REAL,
+    size INTEGER,
+    status INTEGER,
     passed BOOL NOT NULL,
     errors TEXT NOT NULL,
     PRIMARY KEY (check_name, timestamp)
@@ -100,18 +100,17 @@ def read_histogramm(conn: sqlite3.Connection | None, timespan: timedelta = timed
     data = defaultdict(lambda: [list() for _ in range(buckets)])
 
     minutes_per_bucket = int(timespan.total_seconds() / 60 / buckets)
-    print(start, end, minutes_per_bucket)
     for row in conn.execute('SELECT * FROM checks WHERE ? < timestamp AND timestamp < ?', (start.isoformat(), end.isoformat())):
         item = ConnCheckRes(
             row['check_name'],
             datetime.fromisoformat(row['timestamp']),
-            row['duration'],
+            row['duration'] or float('nan'),
             row['size'],
             row['status'],
             row['passed'],
             row['errors'].split("\n"),
         )
-        bucket = int(((item.time - start).total_seconds() / 60) / (minutes_per_bucket))
+        bucket = int(((item.time - start).total_seconds() / 60) / minutes_per_bucket)
         data[item.check][bucket].append(item)
 
     return data
@@ -125,7 +124,7 @@ def save_check(conn: sqlite3.Connection, res: ConnCheckRes):
         res.size,
         res.status,
         res.passed,
-        "\n".join(res.errors)
+        "\n".join(res.errors),
     ))
 
 
