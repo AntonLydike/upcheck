@@ -1,0 +1,31 @@
+upcheck.datenvorr.at {
+    # Reverse proxy to Gunicorn UNIX socket
+    reverse_proxy unix//run/upcheck/upcheck.sock
+
+    # Site-level logging
+    log {
+        output file /var/log/caddy/upcheck_access.log {
+            roll_size 10MB
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+    }
+
+    # Optional: error page for internal server errors
+    handle_errors {
+        respond "Internal Server Error" 500
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:;"
+    }
+
+    # Compression
+    encode gzip zstd
+}

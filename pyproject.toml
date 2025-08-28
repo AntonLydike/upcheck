@@ -1,7 +1,7 @@
 [project]
 name = "upcheck"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "aalib",
     "flask[async]>=3.1.2",
@@ -9,10 +9,14 @@ dependencies = [
 ]
 
 [dependency-groups]
+deploy = [
+    "gunicorn>=23.0.0",
+]
 dev = [
     "filecheck>=1.0.3",
     "pytest>=8.4.1",
     "lit>=18.1.8",
+    "black>=25.1.0",
 ]
 
 [tool.uv.sources]

@@ -6,33 +6,40 @@ import uuid
 
 from upcheck.model import ConnCheckRes, ConnCheckSpec, Config, Snapshot
 
-def check_conn(config: Config, check: ConnCheckSpec) -> tuple[ConnCheckRes, Snapshot | None]:
+
+def check_conn(
+    config: Config, check: ConnCheckSpec
+) -> tuple[ConnCheckRes, Snapshot | None]:
     now = datetime.now()
     try:
-        res = requests.request(check.method, check.url, timeout=check.timeout, allow_redirects=True, headers={
-            'User-Agent': config.user_agent
-        })
+        res = requests.request(
+            check.method,
+            check.url,
+            timeout=check.timeout,
+            allow_redirects=True,
+            headers={"User-Agent": config.user_agent},
+        )
     except requests.Timeout:
-        return ConnCheckRes(
-            check.name,
-            now,
-            float('nan'),
+        return (
+            ConnCheckRes(
+                check.name,
+                now,
+                float("nan"),
+                None,
+                None,
+                False,
+                ["Connection timed out"],
+            ),
             None,
-            None,
-            False,
-            ["Connection timed out"]
-        ), None
+        )
     except requests.ConnectionError as ex:
         # TODO: log underlying cause better (i.e. name resolution error, etc...)
-        return ConnCheckRes(
-            check.name,
-            now,
-            float('nan'),
+        return (
+            ConnCheckRes(
+                check.name, now, float("nan"), None, None, False, ["Connection Error"]
+            ),
             None,
-            None,
-            False,
-            ["Connection Error"]
-        ), None
+        )
 
     errors = []
     body_bytes = res.content
@@ -63,21 +70,25 @@ def check_conn(config: Config, check: ConnCheckSpec) -> tuple[ConnCheckRes, Snap
             body,
         )
 
-    return ConnCheckRes(
-        check.name,
-        now,
-        res.elapsed.total_seconds(),
-        len(body_bytes),
-        res.status_code,
-        status_ok and body_ok,
-        tuple(errors)
-    ), snapshot
+    return (
+        ConnCheckRes(
+            check.name,
+            now,
+            res.elapsed.total_seconds(),
+            len(body_bytes),
+            res.status_code,
+            status_ok and body_ok,
+            tuple(errors),
+        ),
+        snapshot,
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     file = sys.argv[-1]
-    if file ==  '-':
+    if file == "-":
         file = sys.stdin.buffer
     else:
         file = open(file, "rb")
@@ -86,7 +97,7 @@ if __name__ == '__main__':
         print(f"[{check.name}]")
         res, _ = check_conn(cfg, check)
         for key in res.__dir__():
-            if key.startswith('__'):
+            if key.startswith("__"):
                 continue
             val = res.__getattribute__(key)
             print(f"{key} = ", end="")

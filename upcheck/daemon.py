@@ -9,6 +9,7 @@ import traceback
 
 import multiprocessing
 
+
 def check_daemon(cfg: Config, host: str, out: multiprocessing.Queue):
     # sleep random interval up to 5 seconds to prevent all requests from going at the same time
     time.sleep(random.random() * 5)
@@ -22,11 +23,13 @@ def check_daemon(cfg: Config, host: str, out: multiprocessing.Queue):
             # do check
             last_check += cfg.interval
             out.put(check_conn(cfg, check))
-            
+
         # sleep until the next check is due:
         sleep_time = (last_check + cfg.interval) - time.time()
         if sleep_time < 1:
-            print(f"Negative sleep time on {check.name}: ({sleep_time}s)", file=sys.stderr)
+            print(
+                f"Negative sleep time on {check.name}: ({sleep_time}s)", file=sys.stderr
+            )
             # reset interval
             last_check = time.time() - cfg.interval
         else:
@@ -55,9 +58,7 @@ def spawn_daemons(cfg: Config):
 
     for host in cfg.checks:
         multiprocessing.Process(
-            target=check_daemon,
-            args=(cfg, host, queue),
-            daemon=True
+            target=check_daemon, args=(cfg, host, queue), daemon=True
         ).start()
 
     multiprocessing.Process(
@@ -66,4 +67,3 @@ def spawn_daemons(cfg: Config):
         daemon=True,
     ).start()
     print("All processes started successfully")
-
