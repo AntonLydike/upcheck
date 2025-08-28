@@ -104,7 +104,7 @@
       <h6 class="mt-3">Uptime</h6>
 
       <div class="histogram align-items-end">
-        {% for up, time in service.hist|zip(time_buckets) %}
+        {% for up, time in service.hist_uptime|zip(time_buckets) %}
           <div class="bar {{ uptime_to_color(up, service.uptime_goal) }}" style="--size: {{ up }}" x-time="{{time}}" x-value="{{'%.0f'|format(up*100)}}%" title="{{time}}: {{'%.0f'|format(up*100)}}%"></div>
         {% endfor %}
       </div>
@@ -118,17 +118,18 @@
       <!-- Latency Histogram -->
       <div class="histogram align-items-start">
         {% for lat, time in service.hist_latency|zip(time_buckets) %}
-        <div class="bar {{ lat_to_color(lat, service.max_geomean_lat) }}" style="--size: {{ lat / service.max_geomean_lat }}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
+        <div class="bar {{ lat_to_color(lat, service.latency_geomean_max) }}" style="--size: {{ lat / service.latency_geomean_max }}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
         {% endfor %}
       </div>
       <h6 class="mt-2">Latency (geomean)</h6>
 
-
       <!-- Stats -->
       <div class="mt-4 d-flex justify-content-between">
-        <p class=""><strong>Uptime (period):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
-        <p class=""><strong>Uptime (total):</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
-        <p class=""><strong>Goal:</strong> >{{ '%.2f'|format(service.uptime_goal * 100) }}%</p>
+        <p><strong>Uptime (period):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
+        <p><strong>Uptime (total):</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
+        <p><strong>Goal:</strong> >{{ '%.2f'|format(service.uptime_goal * 100) }}%</p>
+        <p><strong>Latency (max):</strong> {{ '%.2fs'|format(service.latency_max) }}</p>
+        <p><strong>Latency (geomean):</strong> {{ '%.2fs'|format(service.latency_geomean) }}</p>
       </div>
     </div>
   </div>
@@ -136,6 +137,7 @@
 
   <footer class="text-muted mt-5 d-flex justify-content-between">
     <small>&copy; Copyright 2025 - Anton Lydike</small>
+    <small>Served in {{ time | duration }}</small>
     <small>Powered by <a href="https://github.com/antonlydike/upcheck">UpCheck</a></small>
   </footer>
   </div>

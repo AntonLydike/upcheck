@@ -1,9 +1,16 @@
 from datetime import datetime, timedelta
 from math import ceil
+import time
 import flask
-import statistics
+import aalib.duration
+from upcheck.cache import timed_cache
 from upcheck.model import Config
-from upcheck.db import with_conn, read_histogramm, initialize_db, all_time_stats
+from upcheck.db import (
+    read_histogram_new,
+    with_conn,
+    initialize_db,
+    all_time_stats,
+)
 from upcheck.daemon import spawn_daemons
 
 config = Config.load("upcheck.toml")
@@ -48,6 +55,9 @@ def inject_ctx():
     }
 
 
+app.jinja_env.filters["duration"] = aalib.duration.duration
+
+
 def parse_duration(dur_str: str) -> timedelta:
     sfx = dur_str[-1]
     num = float(dur_str[:-1])
@@ -63,15 +73,47 @@ def parse_duration(dur_str: str) -> timedelta:
         raise ValueError("Invalid specifier, use h,d or m")
 
 
+@timed_cache(30)
+def load_template_data(buckets: int, duration: timedelta, end: datetime):
+    with with_conn(rdonly=True) as conn:
+        hist = read_histogram_new(conn, duration, end, buckets)
+        total_stats = all_time_stats(conn)
+    data2 = {}
+    for host, check in config.checks.items():
+        host_stats = total_stats.get(
+            host,
+            {
+                "total_uptime": 0,
+                "total_latency_geomean": 1,
+            },
+        )
+        data2[host] = {
+            **host_stats,
+            "hist_uptime": [float("nan")] * buckets,
+            "hist_latency": [float("nan")] * buckets,
+            "latency_max": 1,
+            "latency_geomean": 1,
+            "latency_geomean_max": 1,
+            "url": check.url,
+            "latency_degraded_level": check.timeout_degraded,
+            "uptime_goal": 0.99,
+        }
+        if host in hist:
+            d = hist[host]
+            data2[host].update(d)
+            data2[host]["latency_geomean_max"] = max([0.00001, *d["hist_latency"]])
+    return data2
+
+
 @app.route("/")
 def index():
+    t0 = time.time()
     buckets = flask.request.args.get("buckets", 24 * 4, type=int)
     duration = flask.request.args.get(
         "duration", timedelta(days=1), type=parse_duration
     )
     end = flask.request.args.get("end", datetime.now(), datetime.fromisoformat)
     buckets = max(min(buckets, 24 * 4), 0)
-    print(end)
 
     # align to 5 minute intervals
     alignment = 5 * 60
@@ -80,71 +122,34 @@ def index():
     roundup = int(ceil(seconds / alignment) * alignment) - seconds
 
     end = (end + timedelta(seconds=roundup)).replace(microsecond=0)
-    with with_conn(rdonly=True) as conn:
-        hist = read_histogramm(conn, buckets=buckets, end=end, timespan=duration)
-        total_stats = all_time_stats(conn)
-
-    data = {}
-
-    for host in config.checks:
-        check = config.checks[host]
-        if host in hist:
-            all_data = [check for bucket in hist[host] for check in bucket]
-            lat_hist = [
-                (
-                    statistics.geometric_mean(check.duration for check in bucket)
-                    if bucket
-                    else float("nan")
-                )
-                for bucket in hist[host]
-            ]
-            data[host] = {
-                "hist": [
-                    (
-                        sum([check.passed for check in bucket]) / len(bucket)
-                        if bucket
-                        else float("nan")
-                    )
-                    for bucket in hist[host]
-                ],
-                "hist_latency": lat_hist,
-                "uptime": (
-                    sum(check.passed for check in all_data) / len(all_data)
-                    if all_data
-                    else 0
-                ),
-                "total_uptime": total_stats.get(host, 0),
-                "url": check.url,
-                "method": check.method,
-                "max_lat": max(check.duration for check in all_data),
-                "max_geomean_lat": max([0.00001, *(e for e in lat_hist if e == e)]),
-                "degraded_latency": check.timeout_degraded,
-                "uptime_goal": 0.99,
-            }
-        else:
-            data[host] = {
-                "hist": [float("nan")] * buckets,
-                "hist_latency": [float("nan")] * buckets,
-                "uptime": 0,
-                "total_uptime": total_stats.get(host, 0),
-                "max_geomean_lat": 1,
-                "max_lat": 0,
-                "url": check.url,
-                "method": check.method,
-                "uptime_goal": 0.99,
-            }
 
     time_buckets = [
         (end - (duration * (i + 1) / buckets)).astimezone()
         for i in range(buckets - 1, -1, -1)
     ]
 
-    return flask.render_template(
-        "base.html",
-        data=data,
-        start_time=(end - duration).astimezone(),
-        end_time=end.astimezone(),
-        duration=duration,
-        time_buckets=time_buckets,
-        buckets=buckets,
-    )
+    data = load_template_data(buckets, duration, end)
+    dur = time.time() - t0
+
+    if flask.request.accept_mimetypes.accept_html and not "json" in flask.request.args:
+        return flask.render_template(
+            "base.html",
+            data=data,
+            start_time=(end - duration).astimezone(),
+            end_time=end.astimezone(),
+            duration=duration,
+            time_buckets=time_buckets,
+            buckets=buckets,
+            time=dur,
+        )
+    else:
+        return flask.jsonify(
+            dict(
+                start_time=(end - duration).astimezone().isoformat(),
+                end_time=end.astimezone().isoformat(),
+                duration=duration.total_seconds(),
+                buckets=buckets,
+                hosts=data,
+                time=dur,
+            )
+        )

@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 from threading import Lock
+import time
 from typing import Generator
 from upcheck.model import ConnCheckRes, Incident, Snapshot
 
@@ -100,37 +101,81 @@ def with_conn(
         _POOL[rdonly].append(conn)
 
 
-def read_histogramm(
-    conn: sqlite3.Connection | None,
-    timespan: timedelta = timedelta(days=1),
-    end: datetime | None = None,
-    buckets: int = 24 * 4,
-) -> dict[str, Sequence[Sequence[ConnCheckRes]]]:
-    if conn is None:
-        with with_conn(rdonly=True):
-            return read_histogramm(conn, timespan, start)
-    if end is None:
-        end = datetime.now()
-    start = end - timespan
-    data = defaultdict(lambda: [list() for _ in range(buckets)])
-
-    minutes_per_bucket = int(timespan.total_seconds() / 60 / buckets)
-    for row in conn.execute(
-        "SELECT * FROM checks WHERE ? < timestamp AND timestamp < ?",
-        (start.isoformat(), end.isoformat()),
-    ):
-        item = ConnCheckRes(
-            row["check_name"],
-            datetime.fromisoformat(row["timestamp"]),
-            row["duration"] or float("nan"),
-            row["size"],
-            row["status"],
-            row["passed"],
-            row["errors"].split("\n"),
-        )
-        bucket = int(((item.time - start).total_seconds() / 60) / minutes_per_bucket)
-        data[item.check][bucket].append(item)
-
+def read_histogram_new(
+    conn: sqlite3.Connection,
+    timespan: timedelta,
+    end: datetime,
+    buckets: int,
+):
+    res = conn.execute(
+        """
+WITH filtered AS (
+    SELECT
+        check_name,
+        strftime('%s', timestamp) AS ts,
+        duration,
+        passed
+    FROM checks
+    WHERE timestamp >= :start_date
+      AND timestamp < :end_date
+),
+bucketed AS (
+    SELECT
+        check_name,
+        CAST((ts - strftime('%s', :start_date)) / :seconds_per_bucket AS INTEGER) AS bucket,
+        duration,
+        passed
+    FROM filtered
+),
+per_bucket AS (
+    SELECT
+        check_name,
+        bucket,
+        AVG(passed) AS avg_uptime,
+        EXP(AVG(LN(duration))) AS geomean_latency,
+        NULL AS latency_max
+    FROM bucketed
+    GROUP BY check_name, bucket
+),
+overall AS (
+    SELECT
+        check_name,
+        NULL AS bucket,
+        AVG(passed) AS avg_uptime,
+        EXP(AVG(LN(duration))) AS geomean_latency,
+        MAX(duration) as latency_max
+    FROM filtered
+    GROUP BY check_name
+)
+SELECT * FROM per_bucket
+UNION ALL
+SELECT * FROM overall
+""",
+        {
+            "start_date": (end - timespan).isoformat(),
+            "end_date": (end).isoformat(),
+            "seconds_per_bucket": timespan.total_seconds() / buckets,
+        },
+    )
+    data = {}
+    for row in res:
+        bucket = row["bucket"]
+        check = row["check_name"]
+        if check not in data:
+            data[check] = {
+                "hist_latency": [float("nan")] * buckets,
+                "hist_uptime": [float("nan")] * buckets,
+                "uptime": 0,
+                "latency_geomean": 1,
+                "latency_max": 1,
+            }
+        if bucket is None:
+            data[check]["uptime"] = row["avg_uptime"]
+            data[check]["latency_geomean"] = row["geomean_latency"]
+            data[check]["latency_max"] = row["latency_max"]
+        else:
+            data[check]["hist_latency"][bucket] = row["geomean_latency"]
+            data[check]["hist_uptime"][bucket] = row["avg_uptime"]
     return data
 
 
@@ -165,11 +210,13 @@ def save_snapshot(conn: sqlite3.Connection, snap: Snapshot):
     )
 
 
-def all_time_stats(conn: sqlite3.Connection) -> dict[str, float]:
+def all_time_stats(conn: sqlite3.Connection) -> dict[str, dict[str, float]]:
     return {
-        row["check_name"]: row["uptime"]
+        row["check_name"]: {
+            k: row[k] for k in ("total_uptime", "total_latency_geomean")
+        }
         for row in conn.execute(
-            "SELECT check_name, AVG(passed) AS uptime FROM checks GROUP BY check_name"
+            "SELECT check_name, AVG(passed) AS total_uptime, exp(avg(log(duration))) as total_latency_geomean FROM checks GROUP BY check_name"
         )
     }
 
