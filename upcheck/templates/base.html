@@ -124,7 +124,7 @@
       <h6 class="mt-2">Latency (geomean)</h6>
 
       <!-- Stats -->
-      <div class="mt-4 d-flex justify-content-between">
+      <div class="mt-4 d-flex justify-content-between flex-wrap">
         <p><strong>Uptime (period):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
         <p><strong>Uptime (total):</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
         <p><strong>Goal:</strong> >{{ '%.2f'|format(service.uptime_goal * 100) }}%</p>
