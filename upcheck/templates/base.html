@@ -92,7 +92,7 @@
     <div class="card-body">
       <h3 class="card-title">
         {{ name }}
-        <a href="{{ service.url }}" target="_blank">
+        <a href="{{ service.url }}" target="_blank" title="Visit Website">
             <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
             <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
             <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
@@ -118,7 +118,7 @@
       <!-- Latency Histogram -->
       <div class="histogram align-items-start">
         {% for lat, time in service.hist_latency|zip(time_buckets) %}
-        <div class="bar {{ lat_to_color(lat, service.latency_geomean_max) }}" style="--size: {{ lat / service.latency_geomean_max }}" x-time="{{time}}" x-value="{{lat|round(3)}}s" title="{{time}}: {{ lat|round(3) }}s"></div>
+        <div class="bar {{ lat_to_color(lat, service.latency_geomean_max) }}" style="--size: {{ lat / service.latency_geomean_max }}" x-time="{{time}}" x-value="{{lat|duration('No Data') }}" title="{{time}}: {{ lat|duration('No Data') }}"></div>
         {% endfor %}
       </div>
       <h6 class="mt-2">Latency (geomean)</h6>
@@ -128,8 +128,8 @@
         <p><strong>Uptime (period):</strong> {{ '%.2f'|format(service.uptime * 100) }}%</p>
         <p><strong>Uptime (total):</strong> {{ '%.2f'|format(service.total_uptime * 100) }}%</p>
         <p><strong>Goal:</strong> >{{ '%.2f'|format(service.uptime_goal * 100) }}%</p>
-        <p><strong>Latency (max):</strong> {{ '%.2fs'|format(service.latency_max) }}</p>
-        <p><strong>Latency (geomean):</strong> {{ '%.2fs'|format(service.latency_geomean) }}</p>
+        <p><strong>Latency (max):</strong> {{ service.latency_max|duration }}</p>
+        <p><strong>Latency (geomean):</strong> {{ service.latency_geomean|duration }}</p>
       </div>
     </div>
   </div>

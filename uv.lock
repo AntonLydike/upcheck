@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 [[package]]
 name = "aalib"
 version = "0.1.0"
-source = { git = "https://github.com/AntonLydike/aalib#b357678cbc79f690fbda72a826a364b3940c1029" }
+source = { git = "https://github.com/AntonLydike/aalib#635769920754ebfb82aaa89c61ea563663562578" }
 
 [[package]]
 name = "asgiref"
