@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
 from math import ceil
+import os
 import time
 import flask
 import aalib.duration
 from upcheck.cache import timed_cache
+from upcheck.migrations import apply_migrations
 from upcheck.model import Config
 from upcheck.db import (
     read_histogram_new,
@@ -20,8 +22,14 @@ if config.secret == "s3cr3t":
         "Please change the default secret to a secure value, e.g. by running `head -c 39 /dev/urandom | base64`"
     )
 
+# initialize DB but don't fail if it exists
 initialize_db(soft=True)
 
+# migrate
+with with_conn() as conn:
+    apply_migrations(conn)
+
+# start background processes
 spawn_daemons(config)
 
 app = flask.Flask(__name__)
@@ -153,3 +161,7 @@ def index():
                 time=dur,
             )
         )
+
+@app.route('/favicon.svg')
+def favicon():
+    return flask.send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.svg', mimetype='image/svg+xml')

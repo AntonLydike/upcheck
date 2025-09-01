@@ -1,6 +1,6 @@
 __pycache__
 /.venv
-upcheck.db
+/*.db
 /upcheck.toml
 .lit_test_times.txt
 tests/filecheck/Output

@@ -15,7 +15,7 @@ DB_PATH = "upcheck.db"
 SCHEMA = """
 CREATE TABLE checks (
     check_name TEXT NOT NULL,
-    timestamp TEXT NOT NULL,
+    timestamp REAL NOT NULL,
     duration REAL,
     size INTEGER,
     status INTEGER,
@@ -27,7 +27,7 @@ CREATE TABLE checks (
 CREATE TABLE snapshots (
     uuid TEXT NOT NULL,
     check_name TEXT NOT NULL,
-    timestamp TEXT NOT NULL,
+    timestamp REAL NOT NULL,
     duration REAL NOT NULL,
     size INT NOT NULL,
     status INT NOT NULL,
@@ -50,7 +50,6 @@ CREATE TABLE incidents (
 CREATE INDEX incidents_time ON incidents (start_time, end_time);
 CREATE INDEX incidents_check ON incidents (check_name);
 """
-
 
 def initialize_db(db_path: str = DB_PATH, soft: bool = False):
     if os.path.exists(db_path):
@@ -85,6 +84,8 @@ def with_conn(
             uri=True,
         )
         conn.row_factory = sqlite3.Row
+        if not rdonly:
+            conn.execute('PRAGMA optimize=0x10002;')
 
     conn.rollback()
 
@@ -109,30 +110,22 @@ def read_histogram_new(
 ):
     res = conn.execute(
         """
-WITH filtered AS (
+WITH bucketed AS (
     SELECT
         check_name,
-        strftime('%s', timestamp) AS ts,
-        duration,
-        passed
+        timestamp,
+        passed,
+        LN(duration) AS duration
     FROM checks
     WHERE timestamp >= :start_date
       AND timestamp < :end_date
 ),
-bucketed AS (
-    SELECT
-        check_name,
-        CAST((ts - strftime('%s', :start_date)) / :seconds_per_bucket AS INTEGER) AS bucket,
-        duration,
-        passed
-    FROM filtered
-),
 per_bucket AS (
     SELECT
         check_name,
-        bucket,
+        CAST((timestamp - :start_date) / :seconds_per_bucket AS INTEGER) AS bucket,
         AVG(passed) AS avg_uptime,
-        EXP(AVG(LN(duration))) AS geomean_latency,
+        EXP(AVG(duration)) AS geomean_latency,
         NULL AS latency_max
     FROM bucketed
     GROUP BY check_name, bucket
@@ -142,9 +135,9 @@ overall AS (
         check_name,
         NULL AS bucket,
         AVG(passed) AS avg_uptime,
-        EXP(AVG(LN(duration))) AS geomean_latency,
+        EXP(AVG(duration)) AS geomean_latency,
         MAX(duration) as latency_max
-    FROM filtered
+    FROM bucketed
     GROUP BY check_name
 )
 SELECT * FROM per_bucket
@@ -152,8 +145,8 @@ UNION ALL
 SELECT * FROM overall
 """,
         {
-            "start_date": (end - timespan).isoformat(),
-            "end_date": (end).isoformat(),
+            "start_date": (end - timespan).timestamp(),
+            "end_date": (end).timestamp(),
             "seconds_per_bucket": timespan.total_seconds() / buckets,
         },
     )
@@ -184,7 +177,7 @@ def save_check(conn: sqlite3.Connection, res: ConnCheckRes):
         "INSERT INTO checks(check_name, timestamp, duration, size, status, passed, errors) VALUES (?,?,?,?,?,?,?)",
         (
             res.check,
-            res.time.isoformat(),
+            res.time.timestamp(),
             res.duration,
             res.size,
             res.status,
@@ -200,7 +193,7 @@ def save_snapshot(conn: sqlite3.Connection, snap: Snapshot):
         (
             snap.uuid,
             snap.check,
-            snap.timestamp.isoformat(),
+            snap.timestamp.timestamp(),
             snap.duration,
             snap.size,
             snap.status,

@@ -9,6 +9,7 @@ upcheck.datenvorr.at {
             roll_keep 5
             roll_keep_for 720h
         }
+
         format json
     }
 
