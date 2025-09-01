@@ -136,7 +136,7 @@ overall AS (
         NULL AS bucket,
         AVG(passed) AS avg_uptime,
         EXP(AVG(duration)) AS geomean_latency,
-        MAX(duration) as latency_max
+        EXP(MAX(duration)) as latency_max
     FROM bucketed
     GROUP BY check_name
 )
