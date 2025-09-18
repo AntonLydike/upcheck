@@ -102,6 +102,11 @@ def with_conn(
         _POOL[rdonly].append(conn)
 
 
+def coalesce(*args):
+    for arg in args:
+        if arg is not None:
+            return arg
+
 def read_histogram_new(
     conn: sqlite3.Connection,
     timespan: timedelta,
@@ -163,12 +168,12 @@ SELECT * FROM overall
                 "latency_max": 1,
             }
         if bucket is None:
-            data[check]["uptime"] = row["avg_uptime"]
-            data[check]["latency_geomean"] = row["geomean_latency"]
-            data[check]["latency_max"] = row["latency_max"]
+            data[check]["uptime"] = coalesce(row["avg_uptime"], float('nan'))
+            data[check]["latency_geomean"] = coalesce(row["geomean_latency"], float('nan'))
+            data[check]["latency_max"] = coalesce(row["latency_max"], float('nan'))
         else:
-            data[check]["hist_latency"][bucket] = row["geomean_latency"]
-            data[check]["hist_uptime"][bucket] = row["avg_uptime"]
+            data[check]["hist_latency"][bucket] = coalesce(row["geomean_latency"], float('nan'))
+            data[check]["hist_uptime"][bucket] = coalesce(row["avg_uptime"], float('nan'))
     return data
 
 
